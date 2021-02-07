@@ -6,7 +6,7 @@ persistent startTime
 if isempty(startTime)
     startTime = time;
 end
-diff = param_1 - param_0;
+diff = abs(param_1 - param_0);
 
 %Sigmoind is never truly 0. Accuracy gives the acceptable start value
 accuracy = 0.001 * diff; 
