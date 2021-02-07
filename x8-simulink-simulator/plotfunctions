@@ -1,0 +1,16 @@
+load('current.mat', 'bank');
+
+function resPlot(bank, filToPlot, object)
+    for i=1:length(filToPlot)
+        figure(i)
+        filter = bank.filters{filtToPLot(i)};
+        idx = isnan(filter.x(1,:));
+        if object == 'x'
+            dim=filter.statedim
+            for i=1:dim
+                subplot(dim, 1);
+                plot(filter.x(i,idx));
+            end
+        end
+    end
+end
