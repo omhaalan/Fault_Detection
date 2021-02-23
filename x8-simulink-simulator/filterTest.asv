@@ -63,10 +63,9 @@ R_comparison = 1e-4; %Fix: This should be a constructor argument
 %Mission state
 state = struct('det', 0, 'id', 1, 'est', 2);
 
-%% Dummy filters 
-%for signal analysis: Don't worry about this!!
+%% Dummy filters for signal analysis
 
-
+%%% Don't worry about this!!
 
 dummy = kalmanFilters(simLen, 1, phi_nominal, rho, K_E, prop_diam, 1, 1, 1, 1, 1);
 dummy.addFilter(1, 0, 0, 1, 0, 0, 1);
@@ -88,7 +87,7 @@ dummy_4.addFilter(1, 0, 0, 1, 0, 0, 1);
 
 
 %Generate noise
-e_o = 1e1; e_v = 1e0; e_i = 1e-4;
+e_o = 1e0; e_v = 1e0; e_i = 1e-4;
 w_o = gmdistribution(0,e_o); w_v = gmdistribution(0,e_v); w_i = gmdistribution(0,e_i);
 noise_o = random(w_o, simLen); noise_i = random(w_i, simLen); noise_v = random(w_v, simLen);
 
@@ -99,7 +98,7 @@ v_a_noisy = v_a+ noise_v;
 
 
 
-%% Noise analysis. Don't worry about this
+%% A lot of noise analysis. Don't worry about this
 
 %Arrays for storing noise data (they are all the same)
 h0_noise_free = zeros(simLen, 1); h0_noise_i_0 = h0_noise_free; h0_noisy = h0_noise_free;
@@ -208,7 +207,8 @@ bank.addFilter(1, state.det, 0, R_comparison, 0, 0, start_index);
 %%%% for the nominal case. This has already been done and should not be
 %%%% changed.
 
-%%% addfilter(1, 2, 3, 4, 5, 6, 7)
+%%% addfilter(1, 2, 3, Measurement noise, P_0 (intial
+%%% covariance), initial state, time it starts)
 
 %%% 1: type of filter. This is a number from 1 to 8
 %%%     The types can be found in the cases in the addfilter function in
@@ -217,16 +217,16 @@ bank.addFilter(1, state.det, 0, R_comparison, 0, 0, start_index);
 
 %%% 2: algorithm state: only use state.det
 
-%%% 3: process noise: feel free to change
+%%% 3: process noise: feel free
 
 %%% 4: measurement noise: Sticking to R should be fine. All the filters should
 %%% use the same R. Except the nominal filter.
 
 %%% 5: P_0 intial error covariance
 
-%%% 6: initial state
+%%% initial state
 
-%%% 7: time when the algorithm starts. Use start_index
+%%% time when the algorithm starts. Use start_index
 
 
 

@@ -1,0 +1,31 @@
+Tomorrow:
+
+Run all experiments on the 10% data. Run the whole algorithm on all 10% datasets.
+
+Experiment with the V_a step respons. Note the reactions.
+	1. Keep or omitt peaks?
+
+
+
+
+Results might by new tuning!
+Question:
+	1. Does the algorithm correctly diagnose a healthy system? 
+		Noiseless:
+		Noisy:
+
+	2. Is the same true in the precence of noise?
+
+			
+
+
+	3. Does the system correctly detect an error?
+		F1: Without noise: yes
+
+
+	4. Does the system correctly identify an error?
+	5. Test in noisy envioronment as well.
+
+If this works: Generate the 50% dataseries. Check that the algorithm works on the 1% and 50% datasets. Neccesary modifications?
+
+The project is over when this is done.
