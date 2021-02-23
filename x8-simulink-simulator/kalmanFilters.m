@@ -61,6 +61,8 @@ classdef kalmanFilters < handle
         
         idenProb;
         
+        k_s;
+        
         
         modeFilters;
         activeModes;
@@ -69,7 +71,7 @@ classdef kalmanFilters < handle
     end
     
     methods
-        function obj = kalmanFilters(missionLen, start_index, phi_nominal, rho, K_E, prop_diam, updateRate, detectionWindow, idenWindow, detGain, idenGain)
+        function obj = kalmanFilters(missionLen, start_index, phi_nominal, rho, K_E, prop_diam, updateRate, detectionWindow, idenWindow, detGain, idenGain, k_s)
             obj.missionLen = missionLen;
             obj.filters = {};
             obj.numFilters = 0;
@@ -124,7 +126,7 @@ classdef kalmanFilters < handle
             
             obj.activeModes = [];
             
-            
+            obj.k_s = k_s;
             
             
         end
@@ -403,7 +405,7 @@ classdef kalmanFilters < handle
                     if hypothesis ~= obj.h_0 && obj.systemState ~= obj.state.iden
                         obj.detHyp(k) = obj.h_1;
                         firstDetection = find(obj.detHyp == obj.h_1, 1, 'first');
-                        if k- firstDetection > 500 %500 works for 1 and 2
+                        if k  >= obj.k_s(2)-100 %500 works for 1 and 2
                             obj.stateTransition(obj.state.iden, k);
                         end
                     end

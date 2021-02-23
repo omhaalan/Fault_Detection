@@ -6,14 +6,14 @@
 
 %% Import mission data
 
-mission_name = "F2G10";
+mission_name = "M1";
 % if isnan(mission_name)
 %     inputName = 'What mission would you like to fetch? ';
 %     mission_name = input(inputName, 's');
 % end
 fileName = strcat('flightData/', mission_name, '.mat');
 
-load(fileName, 'mission_desc', 'simulated', 'simLen', 'omega', 'I_e', 'v_a', 'time', 'fault_state', 'transitions', 'C_0_true', 'C_1_true', 'C_2_true', 'I_0_true', 'c_v_true', 'rho', 'K_E', 'prop_diam');
+load(fileName, 'mission_desc', 'simulated', 'simLen', 'omega', 'I_e', 'v_a', 'time', 'fault_state', 'transitions', 'C_0_true', 'C_1_true', 'C_2_true', 'I_0_true', 'c_v_true', 'rho', 'K_E', 'prop_diam', 'k_s');
 load('nominal_values.mat', 'C_D_0_W_REF', 'C_D_J_W_REF', 'C_D_J_2_W_REF', 'c_v', 'I_0')
 
 mode_index = struct('Mode_1', [1 2 3], 'Mode_2',  4, 'Mode_3', 5);   %This data is redundant at this point!
@@ -31,7 +31,7 @@ parameter_names = ["C_{Q,0}", "C_{Q,1}", "C_{Q,2}", "c_v", "I_0"];
 %%%%%%% at end_index
 
 start_index = 1;
-end_index = 3000; %Change this with a more general term when you switch datasets
+end_index = k_s(3); %Change this with a more general term when you switch datasets
 executionLen = end_index - start_index;
 
 %Some usefull indecies: These are mission specific.
@@ -47,7 +47,7 @@ updateRate = 100;
 
 %Length of Bayes filter time series
 detWindow = 1000;
-idenWindow = 1000;
+idenWindow = k_s(3)-k_s(2)-50;
 
 %%%% Increase these to make the byes filter more agressive. Shouldn't be
 %%%% necessary
@@ -68,19 +68,19 @@ state = struct('det', 0, 'id', 1, 'est', 2);
 
 
 
-dummy = kalmanFilters(simLen, 1, phi_nominal, rho, K_E, prop_diam, 1, 1, 1, 1, 1);
+dummy = kalmanFilters(simLen, 1, phi_nominal, rho, K_E, prop_diam, 1, 1, 1, 1, 1, k_s);
 dummy.addFilter(1, 0, 0, 1, 0, 0, 1);
 dummy.addFilter(2, 0, 1e-20, 0.1, 1*1e-7, phi_nominal(mode_index.Mode_1), 1);
 
-dummy_2 = kalmanFilters(simLen, 1, phi_true(:,error_idx)', rho, K_E, prop_diam, 1, 1, 1, 1, 1);
+dummy_2 = kalmanFilters(simLen, 1, phi_true(:,error_idx)', rho, K_E, prop_diam, 1, 1, 1, 1, 1, k_s);
 dummy_2.addFilter(1, 0, 0, 1, 0, 0, 1);
 
 dummy_phi = [phi_nominal(1:3), 0, 0];
-dummy_3 = kalmanFilters(simLen, 1, dummy_phi, rho, K_E, prop_diam, 1, 1, 1, 1, 1);
+dummy_3 = kalmanFilters(simLen, 1, dummy_phi, rho, K_E, prop_diam, 1, 1, 1, 1, 1, k_s);
 dummy_3.addFilter(1, 0, 0, 1, 0, 0, 1);
 
 dummy_phi_2 =[phi_true(1:3), 0, 0];
-dummy_4 = kalmanFilters(simLen, 1, dummy_phi_2, rho, K_E, prop_diam, 1, 1, 1, 1, 1);
+dummy_4 = kalmanFilters(simLen, 1, dummy_phi_2, rho, K_E, prop_diam, 1, 1, 1, 1, 1, k_s);
 dummy_4.addFilter(1, 0, 0, 1, 0, 0, 1);
 
 
@@ -196,7 +196,7 @@ R_2 = 1e-06;
 
 %Initialize filters
 %Don't change
-bank = kalmanFilters(simLen, start_index, phi_nominal,  rho, K_E, prop_diam, updateRate, detWindow, idenWindow, detGain, idenGain);
+bank = kalmanFilters(simLen, start_index, phi_nominal,  rho, K_E, prop_diam, updateRate, detWindow, idenWindow, detGain, idenGain, k_s);
 %Don't change
 bank.setSimTransform(VT);
 %Don't change: This is the nominal filter
@@ -257,7 +257,7 @@ for i=start_index:end_index
     
 end
    
-%save('current2.mat', 'bank');
+save('current2.mat', 'bank');
 
 %% Plots
 load('current2.mat', 'bank');
@@ -273,7 +273,9 @@ close all
 
 
 start_index = bank.start_index;
-end_index = bank.idenProb{end}{end}.k_1;
+end_index = find(isnan(bank.Nu(2,:)), 1, 'first');
+
+
 
 
 a = find(bank.detHyp ~= bank.h_0, 1, 'first')
@@ -281,6 +283,7 @@ figNum = 1;
 
 figure(figNum)
 plot(time(start_index:end_index), v_a(start_index:end_index))
+title('V_a')
 figNum = figNum + 1;
 
 
