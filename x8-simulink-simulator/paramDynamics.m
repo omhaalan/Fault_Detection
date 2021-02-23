@@ -6,11 +6,11 @@ persistent startTime
 if isempty(startTime)
     startTime = time;
 end
-diff = abs(param_1 - param_0);
+diff = param_1 - param_0;
 
 %Sigmoind is never truly 0. Accuracy gives the acceptable start value
 accuracy = 0.001 * diff; 
-slope = log(1/accuracy)/(rise_time/2);
+slope = log(abs(1/accuracy))/(rise_time/2);
 
 param = sigmoid(time - startTime, rise_time/2, slope) * diff + param_0;
 end
