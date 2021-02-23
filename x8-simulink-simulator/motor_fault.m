@@ -30,16 +30,16 @@ function [thrust,torque,omega,I_a,U_out, faultParams] = motor_fault(throttle, Va
     
     riseTime = 200; %Base these on length of mission
     
-    scenario = 1;
+    scenario = 3;
     
     if scenario == 1
         gain = 1.1;
     elseif scenario == 2
-        gain = 1.01
+        gain = 1.01;
     elseif scenario == 3
         gain = 1.001;
     end
-    
+    gain2 = gain - 1;
     switch fault 
         case 1
             C_D_0_W = 1.505683827973845e-06; %0.0078/4/pi^2*prop_diam^5*rho;
@@ -60,7 +60,7 @@ function [thrust,torque,omega,I_a,U_out, faultParams] = motor_fault(throttle, Va
             %Put in correct values
             C_D_0_W = paramDynamics(C_D_0_W, gain*C_D_0_W, riseTime, time);
             C_D_J_W = paramDynamics(C_D_J_W, gain*C_D_J_W, riseTime, time);
-            C_D_J_2_W = paramDynamics(C_D_J_2_W, gain*C_D_J_2_W, riseTime, time);
+            C_D_J_2_W = paramDynamics(C_D_J_2_W, gain2*C_D_J_2_W, riseTime, time);
             
             C_T_J_W = -0.1225/4/pi^2*prop_diam^4*rho;
             C_T_0_W = 0.1148/4/pi^2*prop_diam^4*rho;
