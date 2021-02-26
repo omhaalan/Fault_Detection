@@ -7,6 +7,11 @@
 %% Import mission data
 
 mission_name = "M1";
+% M0 no fault
+% M1 icing
+% M2 air visc?
+% M3 I0?
+
 % if isnan(mission_name)
 %     inputName = 'What mission would you like to fetch? ';
 %     mission_name = input(inputName, 's');
@@ -18,8 +23,9 @@ load('nominal_values.mat', 'C_D_0_W_REF', 'C_D_J_W_REF', 'C_D_J_2_W_REF', 'c_v',
 
 mode_index = struct('Mode_1', [1 2 3], 'Mode_2',  4, 'Mode_3', 5);   %This data is redundant at this point!
 
-phi_nominal= [C_D_0_W_REF, C_D_J_W_REF, C_D_J_2_W_REF, c_v, I_0];
-phi_true = [C_0_true, C_1_true, C_2_true, c_v_true, I_0_true]';
+phi_nominal= [C_D_0_W_REF, C_D_J_W_REF, C_D_J_2_W_REF, c_v, I_0]; %the filters are initiated to this value.
+% could use phi_nominal to quick and dirty test filter behaviour for other errors than what has been simulated already
+phi_true = [C_0_true, C_1_true, C_2_true, c_v_true, I_0_true]'; % the params used in the simulation
 
 
 parameter_names = ["C_{Q,0}", "C_{Q,1}", "C_{Q,2}", "c_v", "I_0"];
@@ -29,6 +35,14 @@ parameter_names = ["C_{Q,0}", "C_{Q,1}", "C_{Q,2}", "c_v", "I_0"];
 %%%%%%% These parameters just give an overview of what data that you run
 %%%%%%% the algorithm on. The algorithm will start at start_index and end
 %%%%%%% at end_index
+
+% k_s(1) is the start of the airspeed increase, first time
+% k_s(2) is when the airspeed has decreased
+% k_s(3) is the start of the second airspeed 
+% Start identification after the airspeed decrease, because then the filters will have seen two different 
+% airspeeds, so the filter with the true hyp should be correct
+% Future step: integrate KF and autopilot, to increase airspeed when KF needs identificability
+% airspeed is not important, but the advance ratio!!
 
 start_index = 1;
 end_index = k_s(3); %Change this with a more general term when you switch datasets
@@ -182,7 +196,7 @@ phi_s_init = [0.994; -0.06] * 1e-06;
 
 %Parameterization filter
 
-P = 1; %Initial parameter
+P = 1; %Initial parameter, for mode 5
 
 
 %% Initialize filters
@@ -215,7 +229,7 @@ bank.addFilter(1, FilterType.detection, 0, R_comparison, 0, 0, start_index);
 %%%     the kallmanFilters file.
 
 
-%%% 2: algorithm state: only use state.det
+%%% 2: algorithm state: only use FilterType.detection
 
 %%% 3: process noise: feel free to change
 
@@ -238,10 +252,9 @@ bank.addFilter(4, FilterType.detection, 1e-8, R, 1e-7, phi_nominal(5), start_ind
 
 %bank.addFilter(5, FilterType.detection, 1e-1, R, 1e-1, P, start_index);
 %bank.addFilter(6....)
-%bank.addFilter(7, state.det, Q_eigen(1), R, P_eigen(1,1), phiTilde_1(1), start_index);
+%bank.addFilter(7, FilterType.detection, Q_eigen(1), R, P_eigen(1,1), phiTilde_1(1), start_index);
 
-bank.addFilter(8, state.det, Q_eigen, R_2, P_eigen, phiTilde_1(1:2), start_index);
-
+bank.addFilter(8, FilterType.detection, Q_eigen, R_2, P_eigen, phiTilde_1(1:2), start_index);
 
 
 %% Run Kalman filtres
