@@ -69,19 +69,19 @@ state = struct('det', 0, 'id', 1, 'est', 2);
 
 
 dummy = kalmanFilters(simLen, 1, phi_nominal, rho, K_E, prop_diam, 1, 1, 1, 1, 1, k_s);
-dummy.addFilter(1, 0, 0, 1, 0, 0, 1);
-dummy.addFilter(2, 0, 1e-20, 0.1, 1*1e-7, phi_nominal(mode_index.Mode_1), 1);
+dummy.addFilter(1, FilterType.detection, 0, 1, 0, 0, 1);
+dummy.addFilter(2, FilterType.detection, 1e-20, 0.1, 1*1e-7, phi_nominal(mode_index.Mode_1), 1);
 
 dummy_2 = kalmanFilters(simLen, 1, phi_true(:,error_idx)', rho, K_E, prop_diam, 1, 1, 1, 1, 1, k_s);
-dummy_2.addFilter(1, 0, 0, 1, 0, 0, 1);
+dummy_2.addFilter(1, FilterType.detection, 0, 1, 0, 0, 1);
 
 dummy_phi = [phi_nominal(1:3), 0, 0];
 dummy_3 = kalmanFilters(simLen, 1, dummy_phi, rho, K_E, prop_diam, 1, 1, 1, 1, 1, k_s);
-dummy_3.addFilter(1, 0, 0, 1, 0, 0, 1);
+dummy_3.addFilter(1, FilterType.detection, 0, 1, 0, 0, 1);
 
 dummy_phi_2 =[phi_true(1:3), 0, 0];
 dummy_4 = kalmanFilters(simLen, 1, dummy_phi_2, rho, K_E, prop_diam, 1, 1, 1, 1, 1, k_s);
-dummy_4.addFilter(1, 0, 0, 1, 0, 0, 1);
+dummy_4.addFilter(1, FilterType.detection, 0, 1, 0, 0, 1);
 
 
 %% Add measurement noise (don't change unless necessary!)
@@ -200,7 +200,7 @@ bank = kalmanFilters(simLen, start_index, phi_nominal,  rho, K_E, prop_diam, upd
 %Don't change
 bank.setSimTransform(VT);
 %Don't change: This is the nominal filter
-bank.addFilter(1, state.det, 0, R_comparison, 0, 0, start_index);
+bank.addFilter(1, FilterType.detection, 0, R_comparison, 0, 0, start_index);
 
 
 %%%% bank.addFilter function is straight forward
@@ -231,12 +231,12 @@ bank.addFilter(1, state.det, 0, R_comparison, 0, 0, start_index);
 
 
 
-bank.addFilter(3, state.det,  1e-17, R, 1e-6, phi_nominal(4), start_index);
+bank.addFilter(3, FilterType.detection,  1e-17, R, 1e-6, phi_nominal(4), start_index);
 
 
-bank.addFilter(4, state.det, 1e-8, R, 1e-7, phi_nominal(5), start_index);
+bank.addFilter(4, FilterType.detection, 1e-8, R, 1e-7, phi_nominal(5), start_index);
 
-%bank.addFilter(5, state.det, 1e-1, R, 1e-1, P, start_index);
+%bank.addFilter(5, FilterType.detection, 1e-1, R, 1e-1, P, start_index);
 %bank.addFilter(6....)
 %bank.addFilter(7, state.det, Q_eigen(1), R, P_eigen(1,1), phiTilde_1(1), start_index);
 
@@ -278,12 +278,14 @@ end_index = find(isnan(bank.Nu(2,:)), 1, 'first');
 
 
 
-a = find(bank.detHyp ~= bank.h_0, 1, 'first')
+a = find(bank.detHyp ~= bank.h_0_idx, 1, 'first')
 figNum = 1;
 
 figure(figNum)
 plot(time(start_index:end_index), v_a(start_index:end_index))
-title('V_a')
+%title('V_a')
+ylabel('Airspeed [m/s]')
+xlabel('Time [s]')
 figNum = figNum + 1;
 
 
@@ -430,17 +432,17 @@ function filterPlot(bank, likelihoods, id, instance, figNum)
     end
 end
 
-function [figNum, sub_end] = magillPlotter(bank, id, array, time, figNum, sub_size, sub_start)
+function [figNum, sub_end] = magillPlotter(bank, id, prob_array, time, figNum, sub_size, sub_start)
     if sub_start == 1
         figure(figNum)
         figNum = figNum + 1;
     end
-    rows = length(array(:,1));
+    rows = length(prob_array(:,1));
     subplot(sub_size, 1, sub_start)
     for i=1:rows
         hold on
         label = bank.filters{id(i)}.label;
-        plot(array(i, :), 'DisplayName', label, 'LineWidth', 2)
+        plot(prob_array(i, :), 'DisplayName', label, 'LineWidth', 2)
         title({num2str(i), strcat(num2str(time(1)), ' - ', num2str(time(2)))})
     end
     legend;
@@ -454,7 +456,6 @@ function [figNum, sub_end] = statePlotter(filter, k_0, k_1, time, figNum, sub_si
         figNum = figNum + 1;
     end
     t = time(k_0: k_1);
-    
     
     for i=1:filter.state_dim
         subplot(sub_size, subplot_col, sub_start)

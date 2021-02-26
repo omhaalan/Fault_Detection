@@ -21,16 +21,15 @@ classdef kalmanFilters < handle
         priordist;
         
         %For multiple models
-        h_0;
-        h_1;
+        h_0_idx;
+        h_1_idx;
         priorHyp;
         PI;
         
         %Algorithm
         updateRate;
         updateTime;
-        systemState;    %0: Detection, 1: iden, 2: Estimation
-        state = struct('detection', 0, 'iden', 1, 'estimation', 2);
+        systemState;    %FilterType 0: Detection, 1: iden, 2: Estimation
         transition;
         
         detProb; %Still in use?
@@ -97,17 +96,17 @@ classdef kalmanFilters < handle
             
             
             
-            obj.systemState = 0;
-            obj.h_0 = 1; %null hypothesis This index also needs to be tackled at some point
-            obj.h_1 = 2;
+            obj.systemState = FilterType.detection;
+            obj.h_0_idx = 1; %null hypothesis This index also needs to be tackled at some point
+            obj.h_1_idx = 2;
             obj.transition = [start_index];
             
             
-            obj.priorHyp = obj.h_0;
+            obj.priorHyp = obj.h_0_idx;
             
             
             %Detection State
-            obj.detHyp = obj.h_0*ones(1,missionLen);
+            obj.detHyp = obj.h_0_idx*ones(1,missionLen);
             obj.detectionWindow = detectionWindow;
             obj.detProb = {};
             obj.detGain = detGain;
@@ -226,11 +225,11 @@ classdef kalmanFilters < handle
             end
             
             %Store the mode and type of the filter.
-            if filterType == obj.state.detection && mode ~= obj.h_0
+            if filterType.isDetection && mode ~= obj.h_0_idx
                 obj.detFilters(end + 1) = id;
                 obj.numDetFilt = length(obj.detFilters);
                 obj.detDist = [2/3, (1/3)]; 
-            elseif filterType == obj.state.iden
+            elseif filterType.isIdentification
                 obj.idenFilters(end + 1) = id;
                 obj.numIdenFilt = length(obj.idenFilters);
                 obj.modeFilters{mode}(end + 1) = id;
@@ -240,7 +239,7 @@ classdef kalmanFilters < handle
             
             %Keep a track over with modes/filter types are in use: You may
             %want to move this into the if above.
-            if ~any(obj.activeModes == mode) && mode ~= obj.h_0
+            if ~any(obj.activeModes == mode) && mode ~= obj.h_0_idx
                 obj.activeModes(end+1) = mode;
                 obj.numActiveModes = length(obj.activeModes);
                 obj.idenModeDist = (1/(obj.numActiveModes+1)).*ones(obj.numActiveModes+1, 1);
@@ -293,55 +292,60 @@ classdef kalmanFilters < handle
             
         end
         function updateFilters(obj, v_a, omega, I_e, k)
-            res = mod(k-obj.transition(end), obj.updateRate);
             
             %Update nominal filter
-            obj.Nu(obj.h_0, k) = obj.filters{obj.h_0}.innovation(v_a, omega, I_e);
+            obj.Nu(obj.h_0_idx, k) = obj.filters{obj.h_0_idx}.innovation(v_a, omega, I_e);
             for i=1 : obj.numDetFilt
                     filter_idx = obj.detFilters(i);
                     obj.kalmanFilter(filter_idx, v_a, omega, I_e, k);
             end
-            for i=1: obj.numIdenFilt
+            % calculate innovations for all identification filters
+            for i=1:obj.numIdenFilt
                     filter_idx = obj.idenFilters(i);
                     obj.Nu(filter_idx,k) = obj.filters{filter_idx}.innovation(v_a, omega, I_e); %Improvement: vector valued func
             end
-            obj.likelihoods(k, [1:obj.numFilters], obj.detGain);
+            filters = [1:obj.numFilters];
+            obj.L(filters,k) = obj.likelihoods(k, filters, obj.detGain);
             
+            % only update detection/identification every updateRate samples
+            res = mod(k-obj.transition(end), obj.updateRate);
             if res == 0 && k > 1
-                if obj.systemState == obj.state.detection
+                if obj.systemState.isDetection
                     obj.detection(k);
-                elseif obj.systemState == obj.state.iden
+                elseif obj.systemState.isIdentification
                     obj.identification(k);
                 end
             end
         end
         
         %% Probability functions
-        function likelihoods(obj, k, filters, gain)
+        function L = likelihoods(obj, k, filters, gain)
             Nu = gain*obj.Nu(filters,k);
             Sigma = obj.filters{1}.R;
             digits(10)
+            % TODO: Why use symbolic?
             li = sym((1/(sqrt(2*pi*Sigma)))*exp(-(Nu.^2)/(2*(Sigma^2)))); 
-            obj.L(filters,k)= vpa(li);
+            L = vpa(li);
             
         end
         
-        function [Hypothesis, probabilities] = magillFilter(obj, window, priorDist, filterModes, k)
+        function [Hypothesis_idx, probabilities] = magillFilter(obj, window_len, priorDist, filterModes, k)
             %Window might be longer than recorded history
             
             
-            L = obj.L(filterModes, k-window:k); % abs(obj.Nu(filterModes, k-window:k).^(-1));
+            L = obj.L(filterModes, k-window_len:k); % abs(obj.Nu(filterModes, k-window:k).^(-1));
             
-            probabilities = [priorDist, zeros(length(priorDist), window)];
-            for i=1:window
+            probabilities = [priorDist, zeros(length(priorDist), window_len)];
+            for i=1:window_len
+                % Scale prob by the likelihood-gain, and 
                 posterior = L(:,i).* probabilities(:,i);
                 W = sum(posterior);
-                if abs(posterior)./W > 1
-                    pause = 0;
-                end
+                % if abs(posterior)./W > 1
+                %     pause = 0;
+                % end
                 probabilities(:,i+1) = posterior ./ W;
             end
-            [~, Hypothesis] = max(probabilities(:,end));
+            [~, Hypothesis_idx] = max(probabilities(:,end));
             
         end
         
@@ -360,12 +364,13 @@ classdef kalmanFilters < handle
         
 
         %% State functions
-        function stateTransition(obj, state, k)
+        % Transition into the new_state, 
+        function stateTransition(obj, new_state, k)
             obj.transition(end+1) = k;
             %Untested: Make sure to have a look!
             %Todo: add in code for other trasitions as well.
-            if state == obj.state.iden && obj.systemState ~= state 
-                obj.systemState = obj.state.iden;
+            if new_state.isIdentification && obj.systemState ~= new_state 
+                obj.systemState = FilterType.identification;
                 
                 %This logic is kind of flawed.
                 for i=1:obj.numDetFilt
@@ -385,7 +390,7 @@ classdef kalmanFilters < handle
                         %Important note: the choice of R and P should be
                         %arbitrary. However, this can easy be subjected to
                         %change.
-                        obj.addFilter(mode, obj.state.iden, zeros(state_dim), 1, P, staticHyp(:,j), k);
+                        obj.addFilter(mode, FilterType.identification, zeros(state_dim), 1, P, staticHyp(:,j), k);
                     end
                 end
             end
@@ -399,14 +404,15 @@ classdef kalmanFilters < handle
                 
                 %Compare h_0 to hypothesis H_1
                 for i=1:obj.numDetFilt
-                    curFilters = [obj.h_0, obj.detFilters(i)];
-                    [hypothesis, prob] = obj.magillFilter(window, obj.detDist', curFilters, k);
+                    curFilters = [obj.h_0_idx, obj.detFilters(i)];
+                    [hypothesis_idx, prob] = obj.magillFilter(window, obj.detDist', curFilters, k);
                     obj.detProb{end}{end+1} = struct('id', curFilters, 'prob', prob, 'k_0', k-window, 'k_1', k);
-                    if hypothesis ~= obj.h_0 && obj.systemState ~= obj.state.iden
-                        obj.detHyp(k) = obj.h_1;
-                        firstDetection = find(obj.detHyp == obj.h_1, 1, 'first');
+                    % If not H0 and not an identification filter, 
+                    if hypothesis_idx ~= obj.h_0_idx && ~obj.systemState.isIdentification 
+                        obj.detHyp(k) = obj.h_1_idx;
+                        firstDetection = find(obj.detHyp == obj.h_1_idx, 1, 'first');
                         if k  >= obj.k_s(2)-100 %500 works for 1 and 2
-                            obj.stateTransition(obj.state.iden, k);
+                            obj.stateTransition(FilterType.identification, k);
                         end
                     end
                 end
@@ -416,7 +422,7 @@ classdef kalmanFilters < handle
             %Run magill filter on every
             window = obj.evaluateWindow(obj.idenWindow, obj.idenFilters, k);
             bestFilters = zeros(1, obj.numActiveModes+1);
-            bestFilters(1) = obj.filters{obj.h_0}.id;
+            bestFilters(1) = obj.filters{obj.h_0_idx}.id;
             obj.idenProb{end+1} = cell(1,obj.numActiveModes+1);
             for i=1:obj.numActiveModes % skip zero hypothesis
                 mode = obj.activeModes(i);
@@ -500,7 +506,7 @@ classdef kalmanFilters < handle
                 obj.killFilters(obj.faultFilters(2:end));
                 obj.modes = obj.nominalFilters;
                 obj.faultFilters = [];
-                if hypothesis ~= obj.h_0
+                if hypothesis ~= obj.h_0_idx
                     
                     filter = obj.filters{hypothesis};
                     obj.faultFilters = [hypothesis, 5, 6];
@@ -512,7 +518,7 @@ classdef kalmanFilters < handle
                     obj.addFilter(hypothesis-1, Q_1, R, P, x);
                     obj.addFilter(hypothesis-1, Q_2, R, P, x);
                 end
-            elseif hypothesis ~= obj.h_0
+            elseif hypothesis ~= obj.h_0_idx
                 obj.updateTime = obj.updateTime + 1;
                 if obj.updateTime >= obj.updateRate
                     obj.updateTime = 0;
