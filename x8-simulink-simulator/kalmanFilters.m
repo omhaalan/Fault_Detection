@@ -115,6 +115,7 @@ classdef kalmanFilters < handle
             obj.idenWindow = idenWindow;
             obj.idenFilters = [];  %Filters used for iden
             obj.idenHyp = NaN(1,missionLen);
+            % Scale the states with states at 0.5, 1 and 1.5 times the original state
             obj.idenScales = [0.5, 1, 1.5]; %[0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4, 1.6, 1.8, 2];
             num = length(obj.idenScales);
             obj.idenInterDist = (1/num).*ones(num,1);
@@ -311,9 +312,9 @@ classdef kalmanFilters < handle
             res = mod(k-obj.transition(end), obj.updateRate);
             if res == 0 && k > 1
                 if obj.systemState.isDetection
-                    obj.detection(k);
+                    obj.updateDetection(k);
                 elseif obj.systemState.isIdentification
-                    obj.identification(k);
+                    obj.updateIdentification(k);
                 end
             end
         end
@@ -321,6 +322,7 @@ classdef kalmanFilters < handle
         %% Probability functions
         function L = likelihoods(obj, k, filters, gain)
             Nu = gain*obj.Nu(filters,k);
+            % Covariance for the H0 hyp filter, should be S
             Sigma = obj.filters{1}.R;
             digits(10)
             % TODO: Why use symbolic?
@@ -331,6 +333,8 @@ classdef kalmanFilters < handle
         
         function [Hypothesis_idx, probabilities] = magillFilter(obj, window_len, priorDist, filterModes, k)
             %Window might be longer than recorded history
+            % priorDist is for the hypothesis
+            % likelihoods are from the KFs, based on innovation and innovation variance
             
             
             L = obj.L(filterModes, k-window_len:k); % abs(obj.Nu(filterModes, k-window:k).^(-1));
@@ -349,7 +353,7 @@ classdef kalmanFilters < handle
             
         end
         
-        function window = evaluateWindow(obj, window, filterModes, k)
+        function window = getSafeWindowLength(obj, window, filterModes, k)
                 %This function makes sure that the window is not to large.
                 if window >= k
                     window = k-1;
@@ -364,8 +368,10 @@ classdef kalmanFilters < handle
         
 
         %% State functions
-        % Transition into the new_state, 
+        % Transition into the new_state (currently detection to identification)
+        % TODO: extend feature to also be able to kill spawned filters that are not successfull
         function stateTransition(obj, new_state, k)
+            % save that a transition occured
             obj.transition(end+1) = k;
             %Untested: Make sure to have a look!
             %Todo: add in code for other trasitions as well.
@@ -373,6 +379,8 @@ classdef kalmanFilters < handle
                 obj.systemState = FilterType.identification;
                 
                 %This logic is kind of flawed.
+                % Loop through all the detection filters and spawn new identification filters
+                % around their states (according to idenScales)
                 for i=1:obj.numDetFilt
                     k_0 = 1; %Change this for more complex solutions!
                     oldFilter = obj.filters{obj.detFilters(i)};
@@ -396,9 +404,10 @@ classdef kalmanFilters < handle
             end
         end
         
-        function detection(obj, k)
+        % update all detection filters
+        function updateDetection(obj, k)
             %Set appropraite window size
-                window = obj.evaluateWindow(obj.detectionWindow, obj.detFilters, k);
+                window = obj.getSafeWindowLength(obj.detectionWindow, obj.detFilters, k);
                 
                 obj.detProb{end+1} = {};
                 
@@ -411,6 +420,8 @@ classdef kalmanFilters < handle
                     if hypothesis_idx ~= obj.h_0_idx && ~obj.systemState.isIdentification 
                         obj.detHyp(k) = obj.h_1_idx;
                         firstDetection = find(obj.detHyp == obj.h_1_idx, 1, 'first');
+                        % k_s is the time when AP increase airspeed. Start the identification filters prior to this
+                        % The identification
                         if k  >= obj.k_s(2)-100 %500 works for 1 and 2
                             obj.stateTransition(FilterType.identification, k);
                         end
@@ -418,17 +429,19 @@ classdef kalmanFilters < handle
                 end
         end
         
-        function identification(obj, k)
+        function updateIdentification(obj, k)
             %Run magill filter on every
-            window = obj.evaluateWindow(obj.idenWindow, obj.idenFilters, k);
+            window = obj.getSafeWindowLength(obj.idenWindow, obj.idenFilters, k);
             bestFilters = zeros(1, obj.numActiveModes+1);
             bestFilters(1) = obj.filters{obj.h_0_idx}.id;
             obj.idenProb{end+1} = cell(1,obj.numActiveModes+1);
             for i=1:obj.numActiveModes % skip zero hypothesis
                 mode = obj.activeModes(i);
                 mode_filters = obj.modeFilters{mode};
+                % assume a uniform a priori distribution 
                 distribution = (1/length(mode_filters)) * ones(length(mode_filters), 1);
                 [best, prob] = obj.magillFilter(window, distribution, mode_filters, k);
+                % add the ID Of the best filter
                 bestFilters(i+1) = obj.modeFilters{mode}(best);
                 obj.idenProb{end}{i} = struct('id', obj.modeFilters{mode}, 'prob', prob, 'k_0', k-window, 'k_1', k);
             end
@@ -441,10 +454,10 @@ classdef kalmanFilters < handle
         end
         %% Fault detection
         function [hypothesis] = faultDetection(obj, k)
-            if obj.systemState == obj.state.detection
-                obj.detection(k);
-            elseif obj.systemState == obj.state.iden
-                obj.identification(k)
+            if obj.systemState.isDetection
+                obj.updateDetection(k);
+            elseif obj.systemState.isIdentification
+                obj.updateIdentification(k)
             end
             
         end
@@ -534,14 +547,3 @@ classdef kalmanFilters < handle
     end
 end
 
-    
-    
-    
-    
-          
-            
-            
-            
-            
-            
- 
