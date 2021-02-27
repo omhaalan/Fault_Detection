@@ -193,14 +193,14 @@ classdef kalmanFilters < handle
                   label = 'Fault 1: Square';
                case 7 %Eigenvalue decomposition scalar
                   %Sort out naming convention of phitilde and intitstate
-                  phiTilde_1 = T * phi_1_nom';
+                  phiTilde_1 = T' * phi_1_nom';
                   H = @(v_a, omega) -h_3(v_a, omega, 0, T, [1, 0, 0]', 0, 0);
                   innovation = @(v_a,  omega, I_e, phiTilde_1_1) h_3(v_a, omega, I_e, T, [phiTilde_1_1; phiTilde_1(2:3)], phi_2_nom, phi_3_nom);
                   state_dim = 1;
                   label = strcat('Fault 1: Eig-sca: Q=', num2str(Q));
                case 8 %Eigenvalue decompositon square
                   label = strcat('Eig-sq: Q=', num2str(Q(1,1)), ', R=', num2str(R));
-                  phiTilde_1 = T * phi_1_nom';
+                  phiTilde_1 = T' * phi_1_nom';
                   H = @(v_a, omega) -[h_3(v_a, omega, 0, T, [1, 0, 0]', 0, 0), h_3(v_a, omega, 0, T, [0, 1, 0]', 0, 0)];
                   innovation = @(v_a,  omega, I_e, phiTilde_1_12) h_3(v_a, omega, I_e, T, [phiTilde_1_12; phiTilde_1(3)], phi_2_nom, phi_3_nom);
                   state_dim = 2;

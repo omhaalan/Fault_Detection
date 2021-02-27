@@ -177,8 +177,8 @@ for i=1:simLen
 end
 
 
-[U, S, VT] = svd(W(1:healthy_idx, :), 'econ');
-phiTilde_1 = VT' * phi_nominal(1:3)';
+[U, S, V] = svd(W(1:healthy_idx, :), 'econ');
+phiTilde_1 = V' * phi_nominal(1:3)';
 condNumb = S(2,2) / S(1,1);
 
 %%% You can tune the eig and eig-square by changing these
@@ -242,19 +242,29 @@ bank.addFilter(1, FilterType.detection, 0, R_comparison, 0, 0, start_index);
 
 %%% 7: time when the algorithm starts. Use start_index
 
-
-
+P_new = diag([2e-12 1e-10]);
+phi_new = [1e-6 1e-6]; %0.0875e-5, 0.2722e-5
+Q_new = diag([1e-15 1e-15]); % Could possibly go more towards 1e-14 for Q11 and/or 1e-14 for Q22
+Q_new_2 = diag([1e-16 1e-16]); % Could possibly go more towards 1e-14 for Q11 and/or 1e-14 for Q22
 
 bank.addFilter(3, FilterType.detection,  1e-17, R, 1e-6, phi_nominal(4), start_index);
 
 
 bank.addFilter(4, FilterType.detection, 1e-8, R, 1e-7, phi_nominal(5), start_index);
 
+
+
+
 %bank.addFilter(5, FilterType.detection, 1e-1, R, 1e-1, P, start_index);
 %bank.addFilter(6....)
 %bank.addFilter(7, FilterType.detection, Q_eigen(1), R, P_eigen(1,1), phiTilde_1(1), start_index);
 
-bank.addFilter(8, FilterType.detection, Q_eigen, R_2, P_eigen, phiTilde_1(1:2), start_index);
+%bank.addFilter(8, FilterType.detection, Q_eigen, R_2, P_new, phiTilde_1(1:2), start_index);
+
+bank.addFilter(8, FilterType.detection, Q_new, R_2, P_new, phiTilde_1(1:2), start_index);
+
+bank.addFilter(8, FilterType.detection, Q_new_2, R_2, P_new, phiTilde_1(1:2), start_index);
+
 
 
 %% Run Kalman filtres
@@ -270,10 +280,10 @@ for i=start_index:end_index
     
 end
    
-save('current2.mat', 'bank');
+save('current1.mat', 'bank');
 
 %% Plots
-load('current2.mat', 'bank');
+%load('current2.mat', 'bank');
 close all
 
 %%%What you need to know about plots:
@@ -292,7 +302,7 @@ end_index = find(isnan(bank.Nu(2,:)), 1, 'first');
 
 
 a = find(bank.detHyp ~= bank.h_0_idx, 1, 'first')
-figNum = 1;
+figNum = 13;
 
 figure(figNum)
 plot(time(start_index:end_index), v_a(start_index:end_index))
